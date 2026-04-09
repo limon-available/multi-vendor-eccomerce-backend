@@ -9,13 +9,14 @@ const socket = require('socket.io')
 const http = require('http')
 const server = http.createServer(app)
 app.use(cors({
-    origin :process.env.mode==='pro'?[process.env.client_customer_production_url,]:['http://localhost:3000','http://localhost:3001'],
+    origin: process.env.mode === 'pro' ? ['https://multi-vendor-dashboard-ecommerce.vercel.app/',
+        'https://frontend-mern-multi-vendor-ecommerc.vercel.app/'] : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true
 }))
 
 const io = socket(server, {
     cors: {
-        origin:['http://localhost:3000','http://localhost:3001'],
+        origin:['https://frontend-mern-multi-vendor-ecommerc.vercel.app/','https://multi-vendor-dashboard-ecommerce.vercel.app/'],
         credentials: true
     }
 })
