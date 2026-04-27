@@ -1,10 +1,11 @@
- const express = require('express')
+require('dotenv').config()
+const express = require('express')
 const app = express()
 const cors = require('cors')
 const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
 const { dbConnect } = require('./utiles/db')
-
+console.log("API KEY:", process.env.API_KEY);
 const socket = require('socket.io')
 const http = require('http')
 const server = http.createServer(app)
@@ -22,6 +23,7 @@ const io = socket(server, {
     }
 })
 
+console.log(process.env.api_key)
 var allCustomer = []
 var allSeller = []
 let admin = {}
@@ -127,9 +129,6 @@ soc.on('disconnect',() => {
     })*/
 
 })
-    require('dotenv').config()
-  
-
     app.use(bodyParser.json())
     app.use(cookieParser())
  
@@ -147,5 +146,17 @@ app.use('/api', require('./routes/paymentRoutes'))
 
     app.get('/', (req, res) => res.send('Hello Server'))
     const port = process.env.PORT
-    dbConnect()
-    server.listen(port, () => console.log(`Server is running on port ${port}`));
+   const startServer = async () => {
+    try {
+        await dbConnect(); // 🔥 WAIT for DB
+
+        server.listen(port, () => {
+            console.log(`Server is running on port ${port}`);
+        });
+
+    } catch (error) {
+        console.log("Server start failed:", error);
+    }
+};
+
+startServer();

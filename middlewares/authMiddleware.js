@@ -1,24 +1,28 @@
- const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 
 module.exports.authMiddleware = async (req, res, next) => {
-    const { accessToken } = req.cookies;
+    const token =
+        req.cookies.customerToken ||
+        req.cookies.sellerToken ||
+        req.cookies.adminToken;
 
-    if (!accessToken) {
+    console.log(" Token:", token);
+
+    if (!token) {
         return res.status(401).json({ error: 'Please Login First' });
-    } else {
-        try {
-            const deCodeToken = jwt.verify(accessToken, process.env.SECRET);
-            
-            req.role = deCodeToken.role;
-            req.id = deCodeToken.id;
+    }
 
-            console.log("Decoded Token:", deCodeToken);
-            console.log("req.id:", req.id, "req.role:", req.role);
+    try {
+        const deCodeToken = jwt.verify(token, process.env.SECRET);
 
-            next();
-        } catch (error) {
-            console.error("JWT Verify Error:", error.message);
-            return res.status(401).json({ error: 'Invalid or expired token, please login again' });
-        }
+        req.role = deCodeToken.role;
+        req.id = deCodeToken.id;
+        console.log("Type of id in middleware",typeof(req.id))
+            console.log("req.id",req.id)
+        next();
+    } catch (error) {
+        return res.status(401).json({
+            error: 'Invalid or expired token'
+        });
     }
 };

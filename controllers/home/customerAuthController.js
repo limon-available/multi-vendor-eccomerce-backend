@@ -23,15 +23,17 @@ class customerAuthController{
                 await sellerCustomerModel.create({
                     myId: createCustomer.id
                 })
-                const token = await createToken({
-                    id : createCustomer.id,
-                    name: createCustomer.name,
-                    email: createCustomer.email,
-                    method: createCustomer.method 
-                })
-                res.cookie('customerToken',token,{
-                    expires : new Date(Date.now() + 7*24*60*60*1000 )
-                })
+             const token = await createToken({
+    id: createCustomer.id,
+    role: 'customer' // 🔥 MUST ADD
+})
+               res.cookie('customerToken', token, {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax',
+    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    path: '/'
+});
                 responseReturn(res,201,{message: "User Register Success", token})
             }
         } catch (error) {
@@ -51,12 +53,17 @@ class customerAuthController{
                     id : customer.id,
                     name: customer.name,
                     email: customer.email,
-                    method: customer.method 
+                    method: customer.method,
+                    role:'customer'
                 })
-                res.cookie('customerToken',token,{
-                    expires : new Date(Date.now() + 7*24*60*60*1000 )
+                res.cookie('customerToken', token, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite:'lax',
+                    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    path:'/'
                 })
-                responseReturn(res, 201,{ message :  'User Login Success',token})
+                responseReturn(res, 201,{ message :  'User Login Success',userInfo:customer,token})
                 
             } else {
                 responseReturn(res, 404,{ error :  'Password Wrong'})

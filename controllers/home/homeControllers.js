@@ -72,7 +72,7 @@ class homeControllers{
     }
    // end method 
 
-   price_range_product = async (req, res) => {
+   /*price_range_product = async (req, res) => {
     try {
         const priceRange = {
             low: 0,
@@ -99,32 +99,68 @@ class homeControllers{
     }
 
    }
-
+*/
 // end method 
 
-query_products = async (req, res) => {
-    const parPage = 12
-    req.query.parPage = parPage
+    query_products = async (req, res) => {
+     console.log("QUERY:", req.query);
+  const parPage = 12
+  const { low, high, category, rating, sortPrice, searchValue, pageNumber } = req.query
 
-    try {
-        const products = await productModel.find({}).sort({
-            createdAt: -1
-        })
-        const totalProduct = new queryProducts(products, req.query).categoryQuery().ratingQuery().searchQuery().priceQuery().sortByPrice().countProducts();
+  let query = {}
 
-        const result = new queryProducts(products, req.query).categoryQuery().ratingQuery().priceQuery().searchQuery().sortByPrice().skip().limit().getProducts();
-        
-        responseReturn(res, 200, {
-            products: result,
-            totalProduct,
-            parPage
-        })
-
-        
-    } catch (error) {
-        console.log(error.message)
+  // 🔹 price filter
+if (low !== undefined && high !== undefined){
+    query.price = {
+      $gte: Number(low),
+      $lte: Number(high)
     }
- 
+  }
+
+  // 🔹 category filter
+  if (category) {
+    query.category = category
+  }
+
+  // 🔹 search filter
+  if (searchValue) {
+    query.name = { $regex: searchValue, $options: "i" }
+  }
+
+  // 🔹 rating filter
+  if (rating) {
+    query.rating = { $gte: Number(rating) }
+  }
+
+  // 🔹 sorting
+  let sortOption = { createdAt: -1 }
+
+  if (sortPrice === "low-to-high") {
+    sortOption = { price: 1 }
+  }
+
+  if (sortPrice === "high-to-low") {
+    sortOption = { price: -1 }
+  }
+
+  try {
+    const totalProduct = await productModel.countDocuments(query)
+
+    const products = await productModel
+      .find(query)
+      .sort(sortOption)
+      .skip((pageNumber - 1) * parPage)
+      .limit(parPage)
+
+    responseReturn(res, 200, {
+      products,
+      totalProduct,
+      parPage
+    })
+
+  } catch (error) {
+    console.log(error.message)
+  }
 }
 // end method 
 
@@ -171,6 +207,27 @@ product_details = async (req, res) => {
 }
 // end method 
 
+ get_price_range = async (req, res) => {
+  try {
+    const result = await productModel.aggregate([
+      {
+        $group: {
+          _id: null,
+          low: { $min: "$price" },
+          high: { $max: "$price" }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      priceRange: result[0] || { low: 0, high: 1000 }
+    });
+
+  } catch (error) {
+    console.log(error.message);
+  }
+};
+    
 submit_review = async (req, res) => {
      const {productId,rating,review,name} = req.body
 

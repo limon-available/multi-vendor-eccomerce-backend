@@ -10,6 +10,7 @@ const { responseReturn } = require('../../utiles/response')
 const { mongo: {ObjectId}} = require('mongoose')
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
+
 class orderController{
 
     paymentCheck = async (id) => {
@@ -30,16 +31,16 @@ class orderController{
             console.log(error)
         }
     }
-
-    // end method 
-      
     place_order = async (req,res) => {
-        const {price,products,shipping_fee,shippingInfo,userId } = req.body
+        const { price, products, shipping_fee, shippingInfo, userId } = req.body
+        
         let authorOrderData = []
         let cardId = []
         const tempDate = moment(Date.now()).format('LLL')
 
         let customerOrderProduct = []
+        console.log("products length:", products.length);
+console.log("products:", JSON.stringify(products, null, 2));
 
         for (let i = 0; i < products.length; i++) {
             const pro = products[i].products
@@ -66,7 +67,7 @@ class orderController{
             for (let i = 0; i < products.length; i++) {
                 const pro = products[i].products
                 const pri = products[i].price
-                const sellerId = products[i].sellerId
+                const sellerId =new ObjectId(products[i].sellerId);
                 let storePor = []
                 for (let j = 0; j < pro.length; j++) {
                     const tempPro = pro[j].productInfo
@@ -103,8 +104,6 @@ class orderController{
  
     }
 
-    // End Method 
-    
     get_customer_dashboard_data = async(req,res) => {
         const{ userId } = req.params 
 
@@ -216,7 +215,6 @@ class orderController{
     } 
 
  }
-  // End Method 
   
   get_admin_order = async (req, res) => {
     const { orderId } = req.params
@@ -240,8 +238,6 @@ class orderController{
         console.log('get admin order details' + error.message)
     }
   }
-  // End Method 
-
 
   admin_order_status_update = async(req, res) => {
     const { orderId } = req.params
@@ -258,10 +254,10 @@ class orderController{
     }
      
   }
-  // End Method 
-
+  
   get_seller_orders = async (req,res) => {
         const {sellerId} = req.params
+        console.log("in get_seller_orders sellerId",sellerId)
         let {page,searchValue,parPage} = req.query
         page = parseInt(page)
         parPage= parseInt(parPage)
@@ -273,10 +269,10 @@ class orderController{
                 
             } else {
                 const orders = await authOrderModel.find({
-                    sellerId,
+                    sellerId:new ObjectId(sellerId),
                 }).skip(skipPage).limit(parPage).sort({ createdAt: -1})
                 const totalOrder = await authOrderModel.find({
-                    sellerId
+                    sellerId:new ObjectId(sellerId)
                 }).countDocuments()
                 responseReturn(res,200, {orders,totalOrder})
             }
@@ -296,7 +292,7 @@ class orderController{
         const order = await authOrderModel.findById(orderId)
         responseReturn(res, 200, { order })
     } catch (error) {
-        console.log('get seller details error' + error.message)
+        console.log('in get seller details error' + error.message)
     }
   }
   // End Method 
@@ -306,10 +302,22 @@ class orderController{
     const { status } = req.body
 
     try {
-        await authOrderModel.findByIdAndUpdate(orderId,{
-            delivery_status: status
+         // 1. seller order update
+        const updatedSellerOrder = await authOrderModel.findByIdAndUpdate(
+            orderId,
+            { delivery_status: status },
+            { new: true }
+        )
+
+        // 2. main order update (IMPORTANT 🔥)
+        await customerOrder.findByIdAndUpdate(
+            updatedSellerOrder.orderId, // 🔥 reference use করো
+            { delivery_status: status }
+        )
+        responseReturn(res, 200, {
+            message: 'order status updated successfully',
+            order:updatedSellerOrder
         })
-        responseReturn(res,200, {message: 'order status updated successfully'})
     } catch (error) {
         console.log('get seller Order error' + error.message)
         responseReturn(res,500, {message: 'internal server error'})
@@ -317,9 +325,7 @@ class orderController{
 
 
   }
-  // End Method 
-
-  create_payment = async (req, res) => {
+create_payment = async (req, res) => {
     const { price } = req.body
     try {
         const payment = await stripe.paymentIntents.create({
@@ -334,11 +340,32 @@ class orderController{
         console.log(error.message)
     }
   }
-  // End Method 
 
+cart_item_delete = async (req, res) => {
+        const userId = req.id;
+        console.log("userId", userId);
+        console.log("item delete controller");
+  try {
+  const result = await cardModel.deleteMany({ userId: new ObjectId(userId) });
+
+console.log("Deleted:", result.deletedCount);
+
+    responseReturn(res, 200, {
+      message: "Cart cleared successfully"
+    });
+
+  } catch (error) {
+    responseReturn(res, 500, {
+      error: error.message
+    });
+  }
+};
+    
+    
   order_confirm = async (req,res) => {
     const {orderId} = req.params
-    try {
+      try {
+        console.log("confirm order controller calling")
         await customerOrder.findByIdAndUpdate(orderId, { payment_status: 'paid' })
         await authOrderModel.updateMany({ orderId: new ObjectId(orderId)},{
             payment_status: 'paid', delivery_status: 'pending'  
@@ -360,7 +387,7 @@ class orderController{
 
         for (let i = 0; i < auOrder.length; i++) {
              await sellerWallet.create({
-                sellerId: auOrder[i].sellerId.toString(),
+                sellerId: auOrder[i].sellerId,
                 amount: auOrder[i].price,
                 month: splitTime[0],
                 year: splitTime[2]
@@ -369,7 +396,7 @@ class orderController{
         responseReturn(res, 200, {message: 'success'}) 
         
     } catch (error) {
-        console.log(error.message)
+        console.log("in order-confirm controller",error.message)
     }
      
   }

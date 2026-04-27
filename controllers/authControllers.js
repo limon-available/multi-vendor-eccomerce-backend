@@ -1,12 +1,14 @@
  const adminModel = require('../models/adminModel')
 const sellerModel = require('../models/sellerModel')
+const customerModel=require('../models/customerModel')
 const sellerCustomerModel  = require('../models/chat/sellerCustomerModel')
 const { responseReturn } = require('../utiles/response')
-const bcrpty = require('bcrypt')
+const bcrypt = require('bcrypt')
 const { createToken } = require('../utiles/tokenCreate')
 const cloudinary = require('cloudinary').v2
 const formidable = require("formidable")
-
+const Admin = require('../models/adminModel');
+const mongoose = require('mongoose');
 cloudinary.config({
   cloud_name: process.env.cloud_name,
   api_key: process.env.api_key,
@@ -16,29 +18,58 @@ cloudinary.config({
 
 class authControllers{
    
+     create_admin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const exist = await Admin.findOne({ email });
+    if (exist) {
+      return res.status(400).json({ message: "Admin already exists" });
+    }
+
+    const hashPassword = await bcrypt.hash(password, 10);
+
+    const admin = await Admin.create({
+      name,
+      email,
+      password: hashPassword
+    });
+
+    res.status(201).json({
+      message: "Admin created successfully",
+      admin
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
     admin_login = async(req,res) => {
         const {email,password} = req.body
         try {
             const admin = await adminModel.findOne({email}).select('+password')
-            // console.log(admin)
+             console.log(admin)
             if (admin) {
-                const match = await bcrpty.compare(password, admin.password)
-                // console.log(match)
+                const match = await bcrypt.compare(password, admin.password)
                 if (match) {
                     const token = await createToken({
                         id : admin.id,
                         role : admin.role
                     })
-                    res.cookie('accessToken',token,{
-                        expires : new Date(Date.now() + 7*24*60*60*1000 )
+                  res.cookie('adminToken', token, {
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax',
+                    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                        path:'/'
                     }) 
-                    responseReturn(res,200,{token,message: "Login Success"})
+                    responseReturn(res, 200, {
+                        token, message: "Login Success",
+                        userInfo:admin
+                    })
                 } else {
                     responseReturn(res,404,{error: "Password Wrong"})
                 }
-
-
-
                  
             } else {
                 responseReturn(res,404,{error: "Email not Found"})
@@ -56,19 +87,26 @@ class authControllers{
         const {email,password} = req.body
         try {
             const seller = await sellerModel.findOne({email}).select('+password')
-            // console.log(admin)
+            
             if (seller) {
-                const match = await bcrpty.compare(password, seller.password)
+                const match = await bcrypt.compare(password, seller.password)
                 // console.log(match)
                 if (match) {
                     const token = await createToken({
                         id : seller.id,
                         role : seller.role
                     })
-                    res.cookie('accessToken',token,{
-                        expires : new Date(Date.now() + 7*24*60*60*1000 )
+                    res.cookie('sellerToken', token, {
+                        httpOnly: true,
+                        secure: false,
+                        sameSite:'lax',
+                      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                        path:'/'
                     }) 
-                    responseReturn(res,200,{token,message: "Login Success"})
+                    responseReturn(res, 200, {
+                        token, message: "Login Success",
+                        userInfo:seller
+                    })
                 } else {
                     responseReturn(res,404,{error: "Password Wrong"})
                 }
@@ -96,7 +134,7 @@ class authControllers{
                 const seller = await sellerModel.create({
                     name,
                     email,
-                    password: await bcrpty.hash(password, 10),
+                    password: await bcrypt.hash(password, 10),
                     method : 'menualy',
                     shopInfo: {}
                 })
@@ -105,37 +143,48 @@ class authControllers{
                })
 
                const token = await createToken({ id : seller.id, role: seller.role })
-               res.cookie('accessToken',token, {
-                expires : new Date(Date.now() + 7*24*60*60*1000 )
-               })
+           res.cookie('sellerToken', token, {
+  httpOnly: true,
+  secure: false,
+  sameSite: 'lax',
+  expires: new Date(Date.now() + 7*24*60*60*1000),
+  path: '/'
+})
 
                responseReturn(res,201,{token,message: 'Register Success'})
             }
          } catch (error) {
+             console.log(error.message);
             responseReturn(res,500,{error: 'Internal Server Error'})
          }
     }
     // End Method 
-
-
-
-
-
-
-
     getUser = async (req, res) => {
-        const {id, role} = req;
+        const { id, role } = req;
+      console.log("ID:", req.id);
+        console.log("role", role); try {
+            console.log("Before DB call");
+            console.log("ID:", id);
 
-        try {
-            if (role === 'admin') {
+          if (role === 'admin') {
+              
                 const user = await adminModel.findById(id)
                 responseReturn(res, 200, {userInfo : user})
-            }else {
+            }
+            else if(role === 'seller') {
                 const seller = await sellerModel.findById(id)
-                responseReturn(res, 200, {userInfo : seller})
+                console.log("Seller found:", seller);
+                responseReturn(res, 200, { userInfo: seller });
+            }
+          else if (role === 'customer') {
+            console.log("in customer");
+                const customer = await customerModel.findById(id)
+            responseReturn(res, 200, { userInfo: customer })
+            console.log("after");
             }
             
         } catch (error) {
+            console.log("getUser error FULL:", error);
             responseReturn(res,500,{error: 'Internal Server Error'})
         }
 
@@ -145,14 +194,13 @@ class authControllers{
  
   profile_image_upload = async (req, res) => {
   try {
-    const id = req.id; // JWT থেকে seller/admin ID
+    const id = req.id; 
     const file = req.file;
 
     if (!file) {
       return responseReturn(res, 400, { error: 'Profile image is required' });
     }
-
-    // 🟩 Upload to Cloudinary using buffer (stream)
+      
     const uploadStream = cloudinary.uploader.upload_stream(
       { folder: 'profile' },
       async (error, uploadResult) => {
@@ -161,7 +209,7 @@ class authControllers{
           return responseReturn(res, 500, { error: 'Image upload failed' });
         }
 
-        // ✅ DB তে image URL update
+           console.log("Upload Success:", uploadResult.secure_url);
         await sellerModel.findByIdAndUpdate(id, { image: uploadResult.secure_url });
         const userInfo = await sellerModel.findById(id);
 
@@ -172,7 +220,7 @@ class authControllers{
       }
     );
 
-    // Multer memory buffer কে Cloudinary তে পাঠানো
+
     uploadStream.end(file.buffer);
   } catch (error) {
     console.error('Profile Image Upload Error:', error);
@@ -205,17 +253,26 @@ class authControllers{
     }
 // End Method 
 
- logout = async (req, res) => {
-    try {
-        res.cookie('accessToken',null,{
-            expires : new Date(Date.now()),
-            httpOnly: true
-        })
-        responseReturn(res, 200,{ message : 'logout Success' })
-    } catch (error) {
-        responseReturn(res, 500,{ error : error.message })
-    }
- }
+logout = async (req, res) => {
+  try {
+    const options = {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+        path: '/',
+      expire:new Date(0)
+    };
+
+    res.clearCookie('adminToken', options);
+    res.clearCookie('sellerToken', options);
+    res.clearCookie('customerToken', options);
+
+    return responseReturn(res, 200, { message: 'Logout Success' });
+
+  } catch (error) {
+    return responseReturn(res, 500, { error: error.message });
+  }
+};
 // End Method 
 
 }

@@ -2,6 +2,7 @@
 const { responseReturn } = require("../../utiles/response")
 const cloudinary = require('cloudinary').v2
 const productModel = require('../../models/productModel')
+const mongoose = require("mongoose");
 
 class productController {
 
@@ -14,7 +15,6 @@ class productController {
                 return responseReturn(res, 400, { error: err.message });
             }
 
-            // --- fields গুলো সবসময় array হয়, তাই প্রথম index নিতে হবে ---
             let name = Array.isArray(fields.name) ? fields.name[0] : fields.name;
             let category = Array.isArray(fields.category) ? fields.category[0] : fields.category;
             let description = Array.isArray(fields.description) ? fields.description[0] : fields.description;
@@ -79,16 +79,17 @@ class productController {
     products_get = async (req, res) => {
         const { page, searchValue, parPage } = req.query;
         const { id } = req;
-
+       
         const skipPage = parseInt(parPage) * (parseInt(page) - 1);
-
+       
         try {
+            console.log("in try");
             if (searchValue) {
                 const products = await productModel.find({
                     $text: { $search: searchValue },
-                    sellerId: id
+                    sellerId: ObjectId(id)
                 }).skip(skipPage).limit(parPage).sort({ createdAt: -1 });
-
+               
                 const totalProduct = await productModel.find({
                     $text: { $search: searchValue },
                     sellerId: id
@@ -96,15 +97,15 @@ class productController {
 
                 responseReturn(res, 200, { products, totalProduct });
             } else {
-                const products = await productModel.find({ sellerId: id })
+                const products = await productModel.find({ sellerId:new mongoose.Types.ObjectId(id) })
                     .skip(skipPage).limit(parPage).sort({ createdAt: -1 });
 
-                const totalProduct = await productModel.find({ sellerId: id }).countDocuments();
+                const totalProduct = await productModel.find({ sellerId:new mongoose.Types.ObjectId(id)}).countDocuments();
 
                 responseReturn(res, 200, { products, totalProduct });
             }
         } catch (error) {
-            console.log(error.message);
+            console.log("in products",error.message);
         }
     }
 

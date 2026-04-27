@@ -4,6 +4,11 @@
     constructor(products,query){
         this.products = products
         this.query = query
+      console.log(
+  this.products.map(p => p.rating)
+)
+        console.log("rating:", this.query.rating)
+console.log("products after rating:", this.products.length)
     }
 
     categoryQuery = () => {
@@ -11,18 +16,21 @@
         return this
     }
 
-    ratingQuery = () => {
-        this.products = this.query.rating ? this.products.filter(c => parseInt(this.query.rating) <= c.rating && c.rating < parseInt(this.query.rating) + 1) : this.products
-        return this
-    }
-
+   ratingQuery = () => {
+  this.products = this.query.rating 
+    ? this.products.filter(c => 
+        Math.floor(c.rating) === parseInt(this.query.rating)
+      ) 
+    : this.products
+  return this
+}
     searchQuery = () => {
         this.products = this.query.searchValue ? this.products.filter(p => p.name.toUpperCase().indexOf(this.query.searchValue.toUpperCase()) > -1  ) : this.products
         return this
     }
 
     priceQuery = () => {
-        this.products = this.products.filter(p => p.price >= this.query.lowPrice & p.price <= this.query.highPrice )
+        this.products = this.products.filter(p => p.price >= this.query.low && p.price <= this.query.high )
         return this
     }
     sortByPrice = () => {
