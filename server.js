@@ -9,7 +9,7 @@ console.log("API KEY:", process.env.API_KEY);
 const socket = require('socket.io')
 const http = require('http')
 const server = http.createServer(app)
-
+app.set('trust proxy', 1) 
 console.log("mode:", process.env.mode);
 app.use(cors({
     origin: process.env.mode === 'pro' ? ['https://multi-vendor-dashboard-ecommerce.vercel.app',
