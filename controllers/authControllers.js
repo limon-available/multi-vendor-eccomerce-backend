@@ -58,8 +58,8 @@ class authControllers{
                     })
                   res.cookie('adminToken', token, {
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax',
+                    secure:true,
+                    sameSite: 'none',
                     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                         path:'/'
                     }) 
@@ -98,8 +98,8 @@ class authControllers{
                     })
                     res.cookie('sellerToken', token, {
                         httpOnly: true,
-                        secure: false,
-                        sameSite:'lax',
+                        secure: true,
+                        sameSite:'none',
                       expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                         path:'/'
                     }) 
@@ -145,8 +145,8 @@ class authControllers{
                const token = await createToken({ id : seller.id, role: seller.role })
            res.cookie('sellerToken', token, {
   httpOnly: true,
-  secure: false,
-  sameSite: 'lax',
+             secure: true,
+  sameSite: 'none',
   expires: new Date(Date.now() + 7*24*60*60*1000),
   path: '/'
 })
@@ -257,8 +257,8 @@ logout = async (req, res) => {
   try {
     const options = {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
+      sameSite: 'none',
+      secure:true,
         path: '/',
       expire:new Date(0)
     };
