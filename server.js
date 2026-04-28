@@ -9,6 +9,8 @@ console.log("API KEY:", process.env.API_KEY);
 const socket = require('socket.io')
 const http = require('http')
 const server = http.createServer(app)
+
+console.log("mode:", process.env.mode);
 app.use(cors({
     origin: process.env.mode === 'pro' ? ['https://multi-vendor-dashboard-ecommerce.vercel.app',
         'https://frontend-mern-multi-vendor-ecommerc.vercel.app'] : ['http://localhost:3000', 'http://localhost:3001'],
@@ -16,11 +18,14 @@ app.use(cors({
 }))
 
 const io = socket(server, {
-    cors: {
-        origin: ['https://frontend-mern-multi-vendor-ecommerc.vercel.app',
-            'https://multi-vendor-dashboard-ecommerce.vercel.app'],
-        credentials: true
-    }
+  cors: {
+    origin: [
+      "https://frontend-mern-multi-vendor-ecommerc.vercel.app",
+      "https://multi-vendor-dashboard-ecommerce.vercel.app"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 })
 
 console.log(process.env.api_key)
