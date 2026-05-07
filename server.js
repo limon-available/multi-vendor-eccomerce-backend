@@ -21,14 +21,15 @@ const io = socket(server, {
   cors: {
     origin: [
       "https://frontend-mern-multi-vendor-ecommerc.vercel.app",
-      "https://multi-vendor-dashboard-ecommerce.vercel.app"
+          "https://multi-vendor-dashboard-ecommerce.vercel.app",
+      "http://localhost:3000",
     ],
     methods: ["GET", "POST"],
     credentials: true
   }
 })
 
-console.log(process.env.api_key)
+console.log("mode:", process.env.mode);
 var allCustomer = []
 var allSeller = []
 let admin = {}

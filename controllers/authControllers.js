@@ -98,8 +98,8 @@ class authControllers{
                     })
                     res.cookie('sellerToken', token, {
                         httpOnly: true,
-                        secure: true,
-                        sameSite:'none',
+                        secure: false,
+                        sameSite:'lax',
                       expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                         path:'/'
                     }) 
@@ -257,8 +257,8 @@ logout = async (req, res) => {
   try {
     const options = {
       httpOnly: true,
-      sameSite: 'none',
-      secure:true,
+      sameSite: 'lax',
+      secure:false,
         path: '/',
       expire:new Date(0)
     };
