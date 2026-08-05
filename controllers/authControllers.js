@@ -3,12 +3,14 @@ const sellerModel = require('../models/sellerModel')
 const customerModel=require('../models/customerModel')
 const sellerCustomerModel  = require('../models/chat/sellerCustomerModel')
 const { responseReturn } = require('../utiles/response')
+const logger = require('../utiles/logger')
 const bcrypt = require('bcrypt')
 const { createToken } = require('../utiles/tokenCreate')
 const cloudinary = require('cloudinary').v2
 const formidable = require("formidable")
 const Admin = require('../models/adminModel');
-const mongoose = require('mongoose');
+const { authCookieOptions, clearAuthCookieOptions } = require('../utiles/cookieOptions')
+const { verifyGoogleToken, verifyFacebookToken } = require('../utiles/oauthVerify')
 cloudinary.config({
   cloud_name: process.env.cloud_name,
   api_key: process.env.api_key,
@@ -21,6 +23,16 @@ class authControllers{
      create_admin = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    const setupKey = req.get('x-setup-key');
+    const localBootstrapAllowed = process.env.mode !== 'pro' && process.env.ALLOW_ADMIN_BOOTSTRAP === 'true';
+
+    if (!localBootstrapAllowed && (!process.env.ADMIN_SETUP_KEY || setupKey !== process.env.ADMIN_SETUP_KEY)) {
+      return res.status(403).json({ message: "Admin bootstrap is disabled" });
+    }
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email, and password are required" });
+    }
 
     const exist = await Admin.findOne({ email });
     if (exist) {
@@ -37,7 +49,12 @@ class authControllers{
 
     res.status(201).json({
       message: "Admin created successfully",
-      admin
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role
+      }
     });
 
   } catch (error) {
@@ -47,8 +64,7 @@ class authControllers{
     admin_login = async(req,res) => {
         const {email,password} = req.body
         try {
-            const admin = await adminModel.findOne({email}).select('+password')
-             console.log(admin)
+          const admin = await adminModel.findOne({ email }).select('+password')
             if (admin) {
                 const match = await bcrypt.compare(password, admin.password)
                 if (match) {
@@ -56,13 +72,7 @@ class authControllers{
                         id : admin.id,
                         role : admin.role
                     })
-                  res.cookie('adminToken', token, {
-                    httpOnly: true,
-                    secure:true,
-                    sameSite: 'none',
-                    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                        path:'/'
-                    }) 
+                  res.cookie('adminToken', token, authCookieOptions()) 
                     responseReturn(res, 200, {
                         token, message: "Login Success",
                         userInfo:admin
@@ -96,13 +106,7 @@ class authControllers{
                         id : seller.id,
                         role : seller.role
                     })
-                    res.cookie('sellerToken', token, {
-                        httpOnly: true,
-                        secure:true,
-                        sameSite:'none',
-                      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                        path:'/'
-                    }) 
+                    res.cookie('sellerToken', token, authCookieOptions()) 
                     responseReturn(res, 200, {
                         token, message: "Login Success",
                         userInfo:seller
@@ -143,29 +147,64 @@ class authControllers{
                })
 
                const token = await createToken({ id : seller.id, role: seller.role })
-           res.cookie('sellerToken', token, {
-  httpOnly: true,
-             secure: true,
-  sameSite: 'none',
-  expires: new Date(Date.now() + 7*24*60*60*1000),
-  path: '/'
-})
+           res.cookie('sellerToken', token, authCookieOptions())
 
                responseReturn(res,201,{token,message: 'Register Success'})
             }
          } catch (error) {
-             console.log(error.message);
+             logger.error('seller_register', error.message);
             responseReturn(res,500,{error: 'Internal Server Error'})
          }
     }
-    // End Method 
+    // End Method
+
+    // Shared flow for Google/Facebook seller sign-in: find-or-create a seller by
+    // the provider's verified email, then issue the same JWT cookie the manual
+    // login path uses. New social sellers start with the usual pending status.
+    _seller_social_login = async (res, profile) => {
+        let seller = await sellerModel.findOne({ email: profile.email })
+
+        if (!seller) {
+            seller = await sellerModel.create({
+                name: profile.name,
+                email: profile.email,
+                method: profile.provider,
+                image: profile.picture || '',
+                shopInfo: {},
+            })
+            await sellerCustomerModel.create({ myId: seller.id })
+        }
+
+        const token = await createToken({ id: seller.id, role: seller.role })
+        res.cookie('sellerToken', token, authCookieOptions())
+        return responseReturn(res, 200, { token, message: 'Login Success', userInfo: seller })
+    }
+
+    seller_google = async (req, res) => {
+        try {
+            const profile = await verifyGoogleToken(req.body.access_token)
+            return await this._seller_social_login(res, profile)
+        } catch (error) {
+            logger.error('seller_google', error.message)
+            return responseReturn(res, 401, { error: 'Google sign-in failed' })
+        }
+    }
+    // End Method
+
+    seller_facebook = async (req, res) => {
+        try {
+            const profile = await verifyFacebookToken(req.body.access_token)
+            return await this._seller_social_login(res, profile)
+        } catch (error) {
+            logger.error('seller_facebook', error.message)
+            return responseReturn(res, 401, { error: 'Facebook sign-in failed' })
+        }
+    }
+    // End Method
+
     getUser = async (req, res) => {
         const { id, role } = req;
-      console.log("ID:", req.id);
-        console.log("role", role); try {
-            console.log("Before DB call");
-            console.log("ID:", id);
-
+        try {
           if (role === 'admin') {
               
                 const user = await adminModel.findById(id)
@@ -173,18 +212,15 @@ class authControllers{
             }
             else if(role === 'seller') {
                 const seller = await sellerModel.findById(id)
-                console.log("Seller found:", seller);
                 responseReturn(res, 200, { userInfo: seller });
             }
           else if (role === 'customer') {
-            console.log("in customer");
                 const customer = await customerModel.findById(id)
             responseReturn(res, 200, { userInfo: customer })
-            console.log("after");
             }
             
         } catch (error) {
-            console.log("getUser error FULL:", error);
+            logger.error('getUser', error.message);
             responseReturn(res,500,{error: 'Internal Server Error'})
         }
 
@@ -205,11 +241,10 @@ class authControllers{
       { folder: 'profile' },
       async (error, uploadResult) => {
         if (error) {
-          console.error('Cloudinary Upload Error:', error);
+          logger.error('profile_image_upload cloudinary', error.message);
           return responseReturn(res, 500, { error: 'Image upload failed' });
         }
 
-           console.log("Upload Success:", uploadResult.secure_url);
         await sellerModel.findByIdAndUpdate(id, { image: uploadResult.secure_url });
         const userInfo = await sellerModel.findById(id);
 
@@ -223,7 +258,7 @@ class authControllers{
 
     uploadStream.end(file.buffer);
   } catch (error) {
-    console.error('Profile Image Upload Error:', error);
+    logger.error('profile_image_upload', error.message);
     return responseReturn(res, 500, { error: 'Internal Server Error' });
   }
 };
@@ -255,13 +290,7 @@ class authControllers{
 
 logout = async (req, res) => {
   try {
-    const options = {
-      httpOnly: true,
-      sameSite: 'none',
-      secure:true,
-        path: '/',
-      expire:new Date(0)
-    };
+    const options = clearAuthCookieOptions();
 
     res.clearCookie('adminToken', options);
     res.clearCookie('sellerToken', options);
