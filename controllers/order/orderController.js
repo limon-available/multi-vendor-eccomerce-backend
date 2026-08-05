@@ -6,7 +6,8 @@ const sellerWallet = require('../../models/sellerWallet')
 
 const cardModel = require('../../models/cardModel')
 const moment = require("moment")
-const { responseReturn } = require('../../utiles/response') 
+const { responseReturn } = require('../../utiles/response')
+const logger = require('../../utiles/logger')
 const { mongo: {ObjectId}} = require('mongoose')
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
@@ -28,19 +29,22 @@ class orderController{
             }
             return true
         } catch (error) {
-            console.log(error)
+            logger.error('paymentCheck', error.message)
+            return false
         }
     }
     place_order = async (req,res) => {
-        const { price, products, shipping_fee, shippingInfo, userId } = req.body
+        const { price, products, shipping_fee, shippingInfo } = req.body
+        const userId = req.id
         
         let authorOrderData = []
         let cardId = []
         const tempDate = moment(Date.now()).format('LLL')
 
         let customerOrderProduct = []
-        console.log("products length:", products.length);
-console.log("products:", JSON.stringify(products, null, 2));
+        if (!Array.isArray(products) || products.length === 0) {
+            return responseReturn(res, 400, { error: 'Products are required' })
+        }
 
         for (let i = 0; i < products.length; i++) {
             const pro = products[i].products
@@ -99,13 +103,17 @@ console.log("products:", JSON.stringify(products, null, 2));
 
             
         } catch (error) {
-            console.log(error.message) 
+            logger.error('place_order', error.message)
+            responseReturn(res,500,{error: 'Internal Server Error'})
         }
- 
+
     }
 
     get_customer_dashboard_data = async(req,res) => {
         const{ userId } = req.params 
+        if (userId !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
 
         try {
             const recentOrders = await customerOrder.find({
@@ -126,16 +134,20 @@ console.log("products:", JSON.stringify(products, null, 2));
                 totalOrder,
                 cancelledOrder
              })
-            
+
         } catch (error) {
-            console.log(error.message)
-        } 
+            logger.error('get_customer_dashboard_data', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
+        }
 
     }
-     // End Method 
+     // End Method
 
-     get_orders = async (req, res) => {
+    get_orders = async (req, res) => {
         const {customerId, status} = req.params
+        if (customerId !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
 
         try {
             let orders = []
@@ -152,28 +164,36 @@ console.log("products:", JSON.stringify(products, null, 2));
             responseReturn(res, 200,{
                 orders
             })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('get_orders', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
 
      }
- // End Method 
+ // End Method
 
  get_order_details = async (req, res) => {
     const {orderId} = req.params
 
     try {
         const order = await customerOrder.findById(orderId)
+        if (!order) {
+            return responseReturn(res,404, { error: 'Order not found' })
+        }
+        if (order.customerId.toString() !== req.id) {
+            return responseReturn(res,403, { error: 'Forbidden' })
+        }
         responseReturn(res,200, {
             order
         })
-        
+
     } catch (error) {
-        console.log(error.message)
+        logger.error('get_order_details', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
  }
- // End Method 
+ // End Method
 
  get_admin_orders = async(req, res) => {
     let {page,searchValue,parPage} = req.query
@@ -211,11 +231,12 @@ console.log("products:", JSON.stringify(products, null, 2));
             responseReturn(res,200, { orders, totalOrder: totalOrder.length })
         }
     } catch (error) {
-        console.log(error.message)
-    } 
+        logger.error('get_admin_orders', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
+    }
 
  }
-  
+
   get_admin_order = async (req, res) => {
     const { orderId } = req.params
     try {
@@ -235,7 +256,8 @@ console.log("products:", JSON.stringify(products, null, 2));
         ])
         responseReturn(res,200, { order: order[0] })
     } catch (error) {
-        console.log('get admin order details' + error.message)
+        logger.error('get_admin_order', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
   }
 
@@ -249,7 +271,7 @@ console.log("products:", JSON.stringify(products, null, 2));
         })
         responseReturn(res,200, {message: 'order Status change success'})
     } catch (error) {
-        console.log('get admin status error' + error.message)
+        logger.error('admin_order_status_update', error.message)
         responseReturn(res,500, {message: 'internal server error'})
     }
      
@@ -257,7 +279,9 @@ console.log("products:", JSON.stringify(products, null, 2));
   
   get_seller_orders = async (req,res) => {
         const {sellerId} = req.params
-        console.log("in get_seller_orders sellerId",sellerId)
+        if (sellerId !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
         let {page,searchValue,parPage} = req.query
         page = parseInt(page)
         parPage= parseInt(parPage)
@@ -278,30 +302,44 @@ console.log("products:", JSON.stringify(products, null, 2));
             }
             
         } catch (error) {
-         console.log('get seller Order error' + error.message)
+         logger.error('get_seller_orders', error.message)
          responseReturn(res,500, {message: 'internal server error'})
         }
-        
+
   }
-  // End Method 
+  // End Method
 
   get_seller_order = async (req,res) => {
     const { orderId } = req.params
     
     try {
         const order = await authOrderModel.findById(orderId)
+        if (!order) {
+            return responseReturn(res, 404, { error: 'Order not found' })
+        }
+        if (order.sellerId.toString() !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
         responseReturn(res, 200, { order })
     } catch (error) {
-        console.log('in get seller details error' + error.message)
+        logger.error('get_seller_order', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
   }
-  // End Method 
+  // End Method
 
   seller_order_status_update = async(req,res) => {
     const {orderId} = req.params
     const { status } = req.body
 
     try {
+        const sellerOrder = await authOrderModel.findById(orderId)
+        if (!sellerOrder) {
+            return responseReturn(res, 404, { error: 'Order not found' })
+        }
+        if (sellerOrder.sellerId.toString() !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
          // 1. seller order update
         const updatedSellerOrder = await authOrderModel.findByIdAndUpdate(
             orderId,
@@ -319,7 +357,7 @@ console.log("products:", JSON.stringify(products, null, 2));
             order:updatedSellerOrder
         })
     } catch (error) {
-        console.log('get seller Order error' + error.message)
+        logger.error('seller_order_status_update', error.message)
         responseReturn(res,500, {message: 'internal server error'})
     }
 
@@ -327,9 +365,15 @@ console.log("products:", JSON.stringify(products, null, 2));
   }
 create_payment = async (req, res) => {
     const { price } = req.body
+    const numericPrice = Number(price)
+
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+        return responseReturn(res, 400, { error: 'Invalid payment amount' })
+    }
+
     try {
         const payment = await stripe.paymentIntents.create({
-            amount: price * 100,
+            amount: Math.round(numericPrice * 100),
             currency: 'usd',
             automatic_payment_methods: {
                 enabled: true
@@ -337,18 +381,15 @@ create_payment = async (req, res) => {
         })
         responseReturn(res, 200, { clientSecret: payment.client_secret })
     } catch (error) {
-        console.log(error.message)
+        logger.error('create_payment', error.message)
+        responseReturn(res,500,{error: 'Payment creation failed'})
     }
   }
 
 cart_item_delete = async (req, res) => {
         const userId = req.id;
-        console.log("userId", userId);
-        console.log("item delete controller");
   try {
   const result = await cardModel.deleteMany({ userId: new ObjectId(userId) });
-
-console.log("Deleted:", result.deletedCount);
 
     responseReturn(res, 200, {
       message: "Cart cleared successfully"
@@ -365,7 +406,14 @@ console.log("Deleted:", result.deletedCount);
   order_confirm = async (req,res) => {
     const {orderId} = req.params
       try {
-        console.log("confirm order controller calling")
+        const order = await customerOrder.findById(orderId)
+        if (!order) {
+            return responseReturn(res, 404, { error: 'Order not found' })
+        }
+        if (order.customerId.toString() !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
+
         await customerOrder.findByIdAndUpdate(orderId, { payment_status: 'paid' })
         await authOrderModel.updateMany({ orderId: new ObjectId(orderId)},{
             payment_status: 'paid', delivery_status: 'pending'  
@@ -396,9 +444,10 @@ console.log("Deleted:", result.deletedCount);
         responseReturn(res, 200, {message: 'success'}) 
         
     } catch (error) {
-        console.log("in order-confirm controller",error.message)
+        logger.error('order_confirm', error.message)
+        responseReturn(res,500,{error: 'Internal Server Error'})
     }
-     
+
   }
    // End Method 
 

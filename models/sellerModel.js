@@ -7,13 +7,18 @@ const sellerSchema = new Schema({
     },
     email: {
         type: String,
-        required : true
+        required : true,
+        unique: true,
+        lowercase: true,
+        trim: true
     },
     password: {
         type: String,
-        required : true,
+        // Required only for manual signups. Social-login sellers (google /
+        // facebook) have no password, so it stays optional for them.
+        required : function () { return this.method === 'menualy' },
         select: false
-    },     
+    },
     role: {
         type: String,
         default : 'seller'

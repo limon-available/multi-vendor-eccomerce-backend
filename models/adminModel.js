@@ -6,11 +6,15 @@ const adminSchema = new Schema({
     },
     email: {
         type: String,
-        required:true
+        required:true,
+        unique: true,
+        lowercase: true,
+        trim: true
     },
     password: {
         type: String,
-        required:true
+        required:true,
+        select: false
     },
     image: {
         type: String,

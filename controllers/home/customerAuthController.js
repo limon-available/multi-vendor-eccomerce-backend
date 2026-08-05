@@ -5,8 +5,57 @@ const sellerCustomerModel = require('../../models/chat/sellerCustomerModel')
 const {createToken} = require('../../utiles/tokenCreate')
 const logger = require('../../utiles/logger')
 const { authCookieOptions, clearAuthCookieOptions } = require('../../utiles/cookieOptions')
+const { verifyGoogleToken, verifyFacebookToken } = require('../../utiles/oauthVerify')
 
 class customerAuthController{
+
+    // Shared flow for Google/Facebook customer sign-in: find-or-create a
+    // customer by the provider's verified email, then issue the same JWT
+    // cookie the manual login path uses.
+    _social_login = async (res, profile) => {
+        let customer = await customerModel.findOne({ email: profile.email })
+
+        if (!customer) {
+            customer = await customerModel.create({
+                name: profile.name,
+                email: profile.email,
+                method: profile.provider,
+            })
+            await sellerCustomerModel.create({ myId: customer.id })
+        }
+
+        const token = await createToken({
+            id: customer.id,
+            name: customer.name,
+            email: customer.email,
+            method: customer.method,
+            role: 'customer',
+        })
+        res.cookie('customerToken', token, authCookieOptions())
+        return responseReturn(res, 200, { message: 'User Login Success', userInfo: customer, token })
+    }
+
+    customer_google = async (req, res) => {
+        try {
+            const profile = await verifyGoogleToken(req.body.access_token)
+            return await this._social_login(res, profile)
+        } catch (error) {
+            logger.error('customer_google', error.message)
+            return responseReturn(res, 401, { error: 'Google sign-in failed' })
+        }
+    }
+    // End Method
+
+    customer_facebook = async (req, res) => {
+        try {
+            const profile = await verifyFacebookToken(req.body.access_token)
+            return await this._social_login(res, profile)
+        } catch (error) {
+            logger.error('customer_facebook', error.message)
+            return responseReturn(res, 401, { error: 'Facebook sign-in failed' })
+        }
+    }
+    // End Method
 
     customer_register = async(req,res) => {
         const {name, email, password } = req.body

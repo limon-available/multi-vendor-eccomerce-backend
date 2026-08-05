@@ -3,6 +3,7 @@ const productModel = require('../../models/productModel')
 const reviewModel = require('../../models/reviewModel')
 const { responseReturn } = require("../../utiles/response")
 const queryProducts = require('../../utiles/queryProducts')
+const logger = require('../../utiles/logger')
 const moment = require('moment')
 const { mongo: {ObjectId}} = require('mongoose')
 
@@ -32,12 +33,13 @@ class homeControllers{
             responseReturn(res,200, {
                 categorys
             })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('get_categorys', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
     }
-    // end method 
+    // end method
 
     get_products = async(req, res) => {
         try {
@@ -65,12 +67,13 @@ class homeControllers{
                 topRated_product,
                 discount_product
             })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('get_products', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
     }
-   // end method 
+   // end method
 
    /*price_range_product = async (req, res) => {
     try {
@@ -103,7 +106,6 @@ class homeControllers{
 // end method 
 
     query_products = async (req, res) => {
-     console.log("QUERY:", req.query);
   const parPage = 12
   const { low, high, category, rating, sortPrice, searchValue, pageNumber } = req.query
 
@@ -159,16 +161,20 @@ if (low !== undefined && high !== undefined){
     })
 
   } catch (error) {
-    console.log(error.message)
+    logger.error('query_products', error.message)
+    responseReturn(res, 500, { error: 'Internal Server Error' })
   }
 }
-// end method 
+// end method
 
 product_details = async (req, res) => {
     const { slug } = req.params
     try {
         const product = await productModel.findOne({slug})
-        
+        if (!product) {
+            return responseReturn(res, 404, { error: 'Product not found' })
+        }
+
         const relatedProducts = await productModel.find({
             $and: [{
                 _id: {
@@ -202,10 +208,11 @@ product_details = async (req, res) => {
         })
 
     } catch (error) {
-        console.log(error.message)
+        logger.error('product_details', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
 }
-// end method 
+// end method
 
  get_price_range = async (req, res) => {
   try {
@@ -224,10 +231,11 @@ product_details = async (req, res) => {
     });
 
   } catch (error) {
-    console.log(error.message);
+    logger.error('get_price_range', error.message);
+    responseReturn(res, 500, { error: 'Internal Server Error' });
   }
 };
-    
+
 submit_review = async (req, res) => {
      const {productId,rating,review,name} = req.body
 
@@ -259,12 +267,12 @@ submit_review = async (req, res) => {
             message: "Review Added Successfully"
         })
 
-        
      } catch (error) {
-        console.log(error.message)
+        logger.error('submit_review', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
      }
 }
-// end method 
+// end method
 
 get_reviews = async (req, res) => {
     const {productId} = req.params
@@ -340,9 +348,10 @@ get_reviews = async (req, res) => {
     totalReview: getAll.length,
     rating_review
    })
-        
+
     } catch (error) {
-        console.log(error.message)
+        logger.error('get_reviews', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
 }
 // end method

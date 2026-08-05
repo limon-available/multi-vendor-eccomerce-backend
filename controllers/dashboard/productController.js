@@ -1,5 +1,6 @@
  const { IncomingForm } = require('formidable');
 const { responseReturn } = require("../../utiles/response")
+const logger = require('../../utiles/logger')
 const cloudinary = require('cloudinary').v2
 const productModel = require('../../models/productModel')
 const mongoose = require("mongoose");
@@ -79,33 +80,35 @@ class productController {
     products_get = async (req, res) => {
         const { page, searchValue, parPage } = req.query;
         const { id } = req;
-       
-        const skipPage = parseInt(parPage) * (parseInt(page) - 1);
-       
+
+        const limit = parseInt(parPage) || 0;
+        const skipPage = limit * ((parseInt(page) || 1) - 1);
+        const sellerObjectId = new mongoose.Types.ObjectId(id);
+
         try {
-            console.log("in try");
             if (searchValue) {
                 const products = await productModel.find({
                     $text: { $search: searchValue },
-                    sellerId: ObjectId(id)
-                }).skip(skipPage).limit(parPage).sort({ createdAt: -1 });
-               
+                    sellerId: sellerObjectId
+                }).skip(skipPage).limit(limit).sort({ createdAt: -1 });
+
                 const totalProduct = await productModel.find({
                     $text: { $search: searchValue },
-                    sellerId: id
+                    sellerId: sellerObjectId
                 }).countDocuments();
 
                 responseReturn(res, 200, { products, totalProduct });
             } else {
-                const products = await productModel.find({ sellerId:new mongoose.Types.ObjectId(id) })
-                    .skip(skipPage).limit(parPage).sort({ createdAt: -1 });
+                const products = await productModel.find({ sellerId: sellerObjectId })
+                    .skip(skipPage).limit(limit).sort({ createdAt: -1 });
 
-                const totalProduct = await productModel.find({ sellerId:new mongoose.Types.ObjectId(id)}).countDocuments();
+                const totalProduct = await productModel.find({ sellerId: sellerObjectId }).countDocuments();
 
                 responseReturn(res, 200, { products, totalProduct });
             }
         } catch (error) {
-            console.log("in products",error.message);
+            logger.error('products_get', error.message);
+            responseReturn(res, 500, { error: 'Internal Server Error' });
         }
     }
 
@@ -116,7 +119,8 @@ class productController {
             const product = await productModel.findById(productId);
             responseReturn(res, 200, { product });
         } catch (error) {
-            console.log(error.message);
+            logger.error('product_get', error.message);
+            responseReturn(res, 500, { error: 'Internal Server Error' });
         }
     }
 

@@ -1,4 +1,5 @@
  const { responseReturn } = require("../../utiles/response");
+const logger = require("../../utiles/logger");
 const cloudinary = require("cloudinary").v2;
 const categoryModel = require("../../models/categoryModel");
 
@@ -11,15 +12,18 @@ cloudinary.config({
 
 class categoryController {
  
-   add_category = async (req, res) => {
+  add_category = async (req, res) => {
+       console.log("Controller Hit");
     try {
       const { name } = req.body;
 
       if (!name || !name.trim()) {
+          console.log("Name validation failed");
         return responseReturn(res, 400, { error: "Invalid category name" });
       }
 
       if (!req.file) {
+          console.log("File validation failed");
         return responseReturn(res, 400, { error: "Image is required" });
       }
 
@@ -28,7 +32,7 @@ class categoryController {
         { folder: "categorys" },
         async (error, uploadResult) => {
           if (error) {
-            console.error("Cloudinary Upload Error:", error);
+            logger.error("add_category cloudinary upload", error.message);
             return responseReturn(res, 500, { error: "Image upload failed" });
           }
 
@@ -50,7 +54,7 @@ class categoryController {
       result.end(req.file.buffer);
 
     } catch (error) {
-      console.error("Add Category Error:", error);
+      logger.error("add_category", error.message);
       responseReturn(res, 500, { error: "Internal Server Error" });
     }
   };
@@ -79,7 +83,7 @@ class categoryController {
 
       responseReturn(res, 200, { categorys, totalCategory });
     } catch (error) {
-      console.error("Get Category Error:", error);
+      logger.error("get_category", error.message);
       responseReturn(res, 500, { error: "Internal Server Error" });
     }
   };
@@ -96,13 +100,24 @@ class categoryController {
         updateData.slug = name.trim().split(" ").join("-");
       }
 
-      if (req.file) {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "categorys",
-        });
-        updateData.image = result.secure_url;
+    if (req.file) {
+  const result = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "categorys" },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
       }
+    );
 
+    stream.end(req.file.buffer);
+  });
+
+  updateData.image = result.secure_url;
+}
       if (Object.keys(updateData).length === 0) {
         return responseReturn(res, 400, { error: "No valid data to update" });
       }
@@ -120,7 +135,7 @@ class categoryController {
         message: "Category Updated successfully",
       });
     } catch (error) {
-      console.error("Update Category Error:", error);
+      logger.error("update_category", error.message);
       responseReturn(res, 500, { error: "Internal Server Error" });
     }
   };
@@ -137,7 +152,7 @@ class categoryController {
 
       res.status(200).json({ message: "Category deleted successfully" });
     } catch (error) {
-      console.error("Delete Category Error:", error);
+      logger.error("deleteCategory", error.message);
       res.status(500).json({ message: "Internal Server Error" });
     }
   };

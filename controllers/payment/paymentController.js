@@ -6,8 +6,10 @@ const withdrowRequest = require('../../models/withdrowRequest')
 
 const {v4: uuidv4} = require('uuid')
 const { responseReturn } = require('../../utiles/response')
+const logger = require('../../utiles/logger')
 const { mongo: {ObjectId}} = require('mongoose')
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+const { dashboardUrl } = require('../../config/env')
 
 class paymentController{
 
@@ -24,8 +26,8 @@ class paymentController{
 
             const accountLink = await stripe.accountLinks.create({
                 account: account.id,
-                refresh_url: 'http://localhost:3001/refresh',
-                return_url:  `http://localhost:3001/success?activeCode=${uid}`,
+                refresh_url: `${dashboardUrl}/refresh`,
+                return_url:  `${dashboardUrl}/success?activeCode=${uid}`,
                 type: 'account_onboarding'
             })
             await stripeModel.create({
@@ -40,8 +42,8 @@ class paymentController{
 
             const accountLink = await stripe.accountLinks.create({
                 account: account.id,
-                refresh_url: 'http://localhost:3001/refresh',
-                return_url:  `http://localhost:3001/success?activeCode=${uid}`,
+                refresh_url: `${dashboardUrl}/refresh`,
+                return_url:  `${dashboardUrl}/success?activeCode=${uid}`,
                 type: 'account_onboarding'
             })
             await stripeModel.create({
@@ -54,10 +56,11 @@ class paymentController{
         }
         
     } catch (error) {
-        console.log('strpe connect account errror' + error.message)
+        logger.error('create_stripe_connect_account', error.message)
+        responseReturn(res, 500, { error: 'Stripe connect account creation failed' })
      }
     }
-    // End Method 
+    // End Method
 
 
     active_stripe_connect_account = async (req, res) => {
@@ -94,6 +97,9 @@ class paymentController{
 
     get_seller_payment_details = async (req, res) => {
     const {sellerId} = req.params
+    if (sellerId.trim() !== req.id) {
+        return responseReturn(res, 403, { message: 'Forbidden' })
+    }
     
     try {
         const payments = await sellerWallet.find({ sellerId }) 
@@ -144,19 +150,21 @@ class paymentController{
             withdrowAmount,
             availableAmount,
             pendingWithdrows,
-            successWithdrows 
+            successWithdrows
         })
-        
+
     } catch (error) {
-        console.log(error.message)
-    } 
-     
+        logger.error('get_seller_payment_details', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
-    // End Method 
+
+    }
+    // End Method
 
 
     withdrowal_request = async (req, res) => {
-        const {amount,sellerId} = req.body
+        const {amount} = req.body
+        const sellerId = req.id
 
         try {
             const withdrowal = await withdrowRequest.create({

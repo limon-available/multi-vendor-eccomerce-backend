@@ -1,5 +1,6 @@
  const formidable = require("formidable")
 const { responseReturn } = require("../../utiles/response")
+const logger = require('../../utiles/logger')
 const cloudinary = require('cloudinary').v2
 const sellerModel = require('../../models/sellerModel')
 
@@ -78,14 +79,15 @@ class sellerController{
                 }).countDocuments()
                 responseReturn(res, 200, {totalSeller,sellers})
             }
-            
+
         } catch (error) {
-            console.log('active seller get ' + error.message)
+            logger.error('get_active_sellers', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
 
 
      }
-   // end method 
+   // end method
 
    get_deactive_sellers = async(req,res) => {
     let {page,searchValue,parPage} = req.query
@@ -114,12 +116,13 @@ class sellerController{
             }).countDocuments()
             responseReturn(res, 200, {totalSeller,sellers})
         }
-        
+
     } catch (error) {
-        console.log('deactive seller get ' + error.message)
+        logger.error('get_deactive_sellers', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
     }
    }
-// end method 
+// end method
 
 }
  

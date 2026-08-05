@@ -4,12 +4,14 @@ const sellerCustomerModel = require('../../models/chat/sellerCustomerModel')
 const sellerCustomerMessage = require('../../models/chat/sellerCustomerMessage')
 const adminSellerMessage = require('../../models/chat/adminSellerMessage')
 const { responseReturn } = require('../../utiles/response')
+const logger = require('../../utiles/logger')
 
 
 class ChatController{
 
     add_customer_friend = async (req, res) => {
-         const { sellerId, userId} = req.body
+         const { sellerId } = req.body
+         const userId = req.id
 
          try {
             if (sellerId !== '') {
@@ -110,18 +112,35 @@ class ChatController{
                     myId: userId
                 })
                 responseReturn(res,200, {
-                    MyFriends: MyFriends.myFriends 
+                    MyFriends: MyFriends.myFriends
                    })
             }
-            
+
          } catch (error) {
-            console.log(error)
+            logger.error('add_customer_friend', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
          }
     }
-    // End Method 
+    // End Method
+
+    get_customer_friends = async (req, res) => {
+        const userId = req.id
+
+        try {
+            const myData = await sellerCustomerModel.findOne({ myId: userId })
+            // Null-safe: a customer with no chat document yet simply has no friends.
+            const myFriends = myData ? myData.myFriends : []
+            responseReturn(res, 200, { myFriends })
+        } catch (error) {
+            logger.error('get_customer_friends', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
+        }
+    }
+    // End Method
 
     customer_message_add = async (req, res) => {
-        const {userId,text,sellerId,name } = req.body
+        const {text,sellerId,name } = req.body
+        const userId = req.id
 
         try {
             const message = await sellerCustomerMessage.create({
@@ -173,22 +192,25 @@ class ChatController{
             responseReturn(res, 201,{message})
 
         } catch (error) {
-            console.log(error)
+            logger.error('customer_message_add', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
     }
-  // End Method 
+  // End Method
 
   get_customers = async (req, res) => {
       const { sellerId } = req.params;
-      console.log("sellerId", sellerId);
+      if (sellerId !== req.id) {
+        return responseReturn(res, 403, { error: 'Forbidden' })
+      }
         try {
             const data = await sellerCustomerModel.findOne({ myId: sellerId })
-            console.log(data);
             responseReturn(res, 200, {
-                customers: data.myFriends
+                customers: data?.myFriends || []
             })
         } catch (error) {
-            console.log(error)
+            logger.error('get_customers', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
   }
     // End Method 
@@ -226,17 +248,19 @@ class ChatController{
             messages,
             currentCustomer
            })
-            
+
         } catch (error) {
-            console.log(error)
-        } 
+            logger.error('get_customers_seller_message', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
+        }
 
     }
-     // End Method 
+     // End Method
 
 
      seller_message_add = async (req, res) => {
-        const {senderId,receverId,text,name} = req.body
+        const {receverId,text,name} = req.body
+        const senderId = req.id
         try {
             const message = await sellerCustomerMessage.create({
                 senderId: senderId,
@@ -287,10 +311,11 @@ class ChatController{
             responseReturn(res, 201,{message})
 
         } catch (error) {
-            console.log(error)
+            logger.error('seller_message_add', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
      }
-     // End Method 
+     // End Method
 
 
      get_sellers = async (req, res) => { 
@@ -300,13 +325,16 @@ class ChatController{
                 sellers
             })
         } catch (error) {
-            console.log(error)
+            logger.error('get_sellers', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
   }
     // End Method 
 
     seller_admin_message_insert = async (req, res) => {
-        const {senderId,receverId,message,senderName} = req.body
+        const {message,senderName} = req.body
+        const senderId = req.role === 'admin' ? '' : req.id
+        const receverId = req.role === 'admin' ? req.body.receverId : ''
 
         try {
             const messageData = await adminSellerMessage.create({
@@ -315,12 +343,13 @@ class ChatController{
                 message,
                 senderName 
             })
-            responseReturn(res, 200, {message: messageData}) 
+            responseReturn(res, 200, {message: messageData})
         } catch (error) {
-            console.log(error)
+            logger.error('seller_admin_message_insert', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
-    } 
- // End Method 
+    }
+ // End Method
 
  get_admin_messages = async (req, res) => {
     const { receverId } = req.params 
@@ -358,12 +387,13 @@ class ChatController{
         messages,
         currentSeller
        })
-        
+
     } catch (error) {
-        console.log(error)
-    } 
+        logger.error('get_admin_messages', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
+    }
  }
- // End Method 
+ // End Method
 
 
  get_seller_messages = async (req, res) => {
@@ -395,12 +425,13 @@ class ChatController{
        })
  
        responseReturn(res, 200, {
-        messages 
+        messages
        })
-        
+
     } catch (error) {
-        console.log(error)
-    } 
+        logger.error('get_seller_messages', error.message)
+        responseReturn(res, 500, { error: 'Internal Server Error' })
+    }
  }
  // End Method 
 

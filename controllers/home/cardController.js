@@ -1,12 +1,14 @@
  const cardModel = require('../../models/cardModel')
 const { responseReturn } = require('../../utiles/response')
+const logger = require('../../utiles/logger')
 const { mongo: {ObjectId}} = require('mongoose')
 const wishlistModel = require('../../models/wishlistModel')
 
 class cardController{
    
     add_to_card =  async(req, res) => {
-        const { userId, productId, quantity } = req.body
+        const { productId, quantity } = req.body
+        const userId = req.id
         try {
             const product = await cardModel.findOne({
                 $and: [{
@@ -32,16 +34,20 @@ class cardController{
                 })
                 responseReturn(res,201,{message: "Added To Card Successfully" , product})
             }
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('add_to_card', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
     }
-    // End Method 
+    // End Method
 
     get_card_products = async(req, res) => {
        const co = 5;
        const {userId } = req.params
+       if (userId !== req.id) {
+        return responseReturn(res, 403, { error: 'Forbidden' })
+       }
        try {
         const card_products = await cardModel.aggregate([{
             $match: {
@@ -124,38 +130,54 @@ class cardController{
         outOfStockProduct,
         buy_product_item
       })
-            
+
        } catch (error) {
-         console.log(error.message)
+         logger.error('get_card_products', error.message)
+         responseReturn(res, 500, { error: 'Internal Server Error' })
        }
-       
+
     }
-    // End Method 
+    // End Method
 
 
     delete_card_products = async (req, res) => {
         const {card_id } = req.params
         try {
+            const item = await cardModel.findById(card_id)
+            if (!item) {
+                return responseReturn(res,404,{error: "Cart item not found" })
+            }
+            if (item.userId.toString() !== req.id) {
+                return responseReturn(res,403,{error: "Forbidden" })
+            }
             await cardModel.findByIdAndDelete(card_id)
             responseReturn(res,200,{message: "Product Remove Successfully" })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('delete_card_products', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
-         
+
     }
-       // End Method 
+       // End Method
 
        quantity_inc = async (req, res) => {
         const {card_id } = req.params
         try {
             const product = await cardModel.findById(card_id)
+            if (!product) {
+                return responseReturn(res,404,{error: "Cart item not found" })
+            }
+            if (product.userId.toString() !== req.id) {
+                return responseReturn(res,403,{error: "Forbidden" })
+            }
             const {quantity} = product
             await cardModel.findByIdAndUpdate(card_id,{quantity: quantity + 1 })
             responseReturn(res,200,{message: "Qty Updated" })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('quantity_inc', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
          
     }
@@ -165,12 +187,19 @@ class cardController{
         const {card_id } = req.params
         try {
             const product = await cardModel.findById(card_id)
+            if (!product) {
+                return responseReturn(res,404,{error: "Cart item not found" })
+            }
+            if (product.userId.toString() !== req.id) {
+                return responseReturn(res,403,{error: "Forbidden" })
+            }
             const {quantity} = product
             await cardModel.findByIdAndUpdate(card_id,{quantity: quantity - 1 })
             responseReturn(res,200,{message: "Qty Updated" })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('quantity_dec', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
          
     }
@@ -179,28 +208,33 @@ class cardController{
 
        add_wishlist = async (req, res) => {
         const { slug } = req.body
+        const userId = req.id
         try {
-            const product = await wishlistModel.findOne({slug})
+            const product = await wishlistModel.findOne({slug, userId})
                 if (product) {
                     responseReturn(res, 404 ,{
                         error: 'Product Is Already In Wishlist'
                     })
                 } else {
-                    await wishlistModel.create(req.body)
+                    await wishlistModel.create({ ...req.body, userId })
                     responseReturn(res, 201 ,{
                         message: 'Product Add to Wishlist Success'
                     })
                 }
         } catch (error) {
-            console.log(error.message)
+            logger.error('add_wishlist', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
 
        }
-       // End Method 
+       // End Method
 
 
        get_wishlist = async (req, res) => {
         const { userId } = req.params
+        if (userId !== req.id) {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
         try {
             const wishlists = await wishlistModel.find({
                 userId
@@ -209,27 +243,36 @@ class cardController{
                 wishlistCount: wishlists.length,
                 wishlists
             })
-            
+
         } catch (error) {
-            console.log(error.message)
+            logger.error('get_wishlist', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
-       } 
-        // End Method 
+       }
+        // End Method
 
         remove_wishlist = async (req, res) => {
            const {wishlistId} = req.params
            try {
-            const wishlist = await wishlistModel.findByIdAndDelete(wishlistId) 
+            const wishlist = await wishlistModel.findById(wishlistId)
+            if (!wishlist) {
+                return responseReturn(res, 404,{ error: 'Wishlist product not found' })
+            }
+            if (wishlist.userId.toString() !== req.id) {
+                return responseReturn(res, 403,{ error: 'Forbidden' })
+            }
+            await wishlistModel.findByIdAndDelete(wishlistId) 
             responseReturn(res, 200,{
                 message: 'Wishlist Product Remove',
                 wishlistId
             })
-            
+
            } catch (error) {
-            console.log(error.message)
+            logger.error('remove_wishlist', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
            }
         }
- // End Method 
+ // End Method
 
 }
 

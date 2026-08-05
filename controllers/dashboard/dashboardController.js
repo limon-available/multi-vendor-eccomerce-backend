@@ -9,6 +9,7 @@ const authOrder = require('../../models/authOrder')
 const sellerCustomerMessage = require('../../models/chat/sellerCustomerMessage') 
 const bannerModel = require('../../models/bannerModel') 
 const { mongo: {ObjectId}} = require('mongoose')
+const logger = require('../../utiles/logger')
 const cloudinary = require('cloudinary').v2
 const formidable = require("formidable")
 
@@ -42,11 +43,12 @@ class dashboardController{
          })
 
         } catch (error) {
-            console.log(error.message)
+            logger.error('get_admin_dashboard_data', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
-         
+
     }
-    //end Method 
+    //end Method
 
 
     get_seller_dashboard_data = async (req, res) => {
@@ -116,11 +118,12 @@ class dashboardController{
          })
 
         } catch (error) {
-            console.log(error.message)
+            logger.error('get_seller_dashboard_data', error.message)
+            responseReturn(res, 500, { error: 'Internal Server Error' })
         }
-        
+
     }
-    //end Method 
+    //end Method
 
     add_banner = async(req,res) => {
        const form = formidable({multiples:true})
