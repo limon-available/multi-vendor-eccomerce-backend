@@ -414,7 +414,7 @@ cart_item_delete = async (req, res) => {
             return responseReturn(res, 403, { error: 'Forbidden' })
         }
 
-        await customerOrder.findByIdAndUpdate(orderId, { payment_status: 'paid' })
+        await customerOrder.findByIdAndUpdate(orderId, { payment_status: 'paid',delivery_status:'pending'})
         await authOrderModel.updateMany({ orderId: new ObjectId(orderId)},{
             payment_status: 'paid', delivery_status: 'pending'  
         })
