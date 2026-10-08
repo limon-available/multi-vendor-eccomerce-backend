@@ -1,4 +1,6 @@
 const DEFAULT_CLIENT_ORIGINS = [
+  'https://admin.limontechno.com',
+  'https://seller.limontechno.com',
   'https://multi-vendor-dashboard-ecommerce.vercel.app',
   'https://frontend-mern-multi-vendor-ecommerc.vercel.app',
   'http://localhost:3000',
